@@ -1,52 +1,86 @@
-// You can import your modules
-// import index from '../src/index'
-
 import nock from 'nock'
-// Requiring our app implementation
-import myProbotApp from '../src'
+import dedent from 'dedent'
+
+import flakeDetector from '../src'
 import { Probot } from 'probot'
-// Requiring our fixtures
-import payload from './fixtures/issues.opened.json'
-const issueCreatedBody = { body: 'Thanks for opening this issue!' }
 
 nock.disableNetConnect()
 
-describe('My Probot app', () => {
+describe('Flake Detector', () => {
   let probot: any
 
   beforeEach(() => {
     probot = new Probot({ id: 123, cert: 'test' })
-    // Load our app into probot
-    const app = probot.load(myProbotApp)
-
-    // just return a test token
+    const app = probot.load(flakeDetector)
     app.app = () => 'test'
   })
 
-  test('creates a comment when an issue is opened', async () => {
-    // Test that we correctly return a test token
-    nock('https://api.github.com')
-      .post('/app/installations/2/access_tokens')
-      .reply(200, { token: 'test' })
+  test('stores metadata when a check run reports a failing test', async () => {
+    const expectedMetadata = {
+      failures: {
+        deadbeef: [
+          {
+            path: 'test number 1',
+            message: 'message 1',
+            raw_details: 'raw 1',
+            details_url: 'https://ci.that.doesnt.suck/builds/7'
+          },
+          {
+            path: 'test number 2',
+            message: 'message 2',
+            raw_details: 'raw 2',
+            details_url: 'https://ci.that.doesnt.suck/builds/7'
+          }
+        ]
+      }
+    }
 
-    // Test that a comment is posted
-    nock('https://api.github.com')
-      .post('/repos/hiimbex/testing-things/issues/1/comments', (body: any) => {
-        expect(body).toMatchObject(issueCreatedBody)
-        return true
+    const n = nock('https://api.github.com')
+      .get('/repos/owner/repo/check-runs/100/annotations')
+      .reply(200, JSON.stringify([
+        { path: 'test number 1', message: 'message 1', raw_details: 'raw 1', annotation_level: 'failure' },
+        { path: 'test number 2', message: 'message 2', raw_details: 'raw 2', annotation_level: 'failure' },
+        { path: 'idk why this is here', message: 'no', raw_details: 'no', annotation_level: 'warning' }
+      ]))
+      .get('/repos/owner/repo/pulls/6')
+      .reply(200, JSON.stringify({
+        body: 'this is the existing pull request body'
+      }))
+      .patch('/repos/owner/repo/pulls/6', (body: any) => {
+        expect(body).toMatchObject({
+          body: dedent`
+            this is the existing pull request body
+
+            <!-- probot = ${JSON.stringify(expectedMetadata)} -->
+          `
+        })
       })
       .reply(200)
 
-    // Receive a webhook event
-    await probot.receive({ name: 'issues', payload })
+    await probot.receive({
+      name: 'check_run',
+      payload: {
+        action: 'completed',
+        check_run: {
+          name: 'oh no',
+          status: 'completed',
+          conclusion: 'failure',
+          details_url: 'https://ci.that.doesnt.suck/builds/7',
+          output: { annotations_url: 'https://api.github.com/repos/owner/repo/check-runs/100/annotations' },
+          head_sha: 'deadbeef',
+          pull_requests: [ { number: 6 } ]
+        }
+      }
+    })
+
+    expect(n.isDone()).toBeTruthy();
   })
+
+  test.skip('adds a comment when a check run has identified a potential flake', () => {})
+
+  test.skip('omits a potential flake that already has an issue created', () => {})
+
+  test.skip('creates an issue when a potential flake has been accepted', () => {})
+
+  test.skip('declines to create an issue for a potential flake when one already exists', () => {})
 })
-
-// For more information about testing with Jest see:
-// https://facebook.github.io/jest/
-
-// For more information about using TypeScript in your tests, Jest recommends:
-// https://github.com/kulshekhar/ts-jest
-
-// For more information about testing with Nock see:
-// https://github.com/nock/nock
