@@ -25,12 +25,14 @@ describe("Flake Detector", () => {
         failures: {
           deadbeef: [
             {
+              id: 0,
               path: "test number 1",
               message: "message 1",
               raw_details: "raw 1",
               details_url: "https://ci.that.doesnt.suck/builds/7",
             },
             {
+              id: 1,
               path: "test number 2",
               message: "message 2",
               raw_details: "raw 2",

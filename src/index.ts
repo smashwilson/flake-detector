@@ -2,6 +2,7 @@ import { Application, Context } from "probot";
 import metadata from "probot-metadata";
 
 interface IRecordedFailure {
+  readonly id: number;
   readonly path: string;
   readonly message: string;
   readonly raw_details: string;
@@ -93,15 +94,19 @@ export = (app: Application) => {
       // Record this failure within the pull request metadata if it is not present already
       await editFailures(context, pullRequestNumbers, headSha, async (known) => {
         let newSeen = false;
+        let nextID = Math.max(0, ...known.map((each) => each.id));
         const knownPaths = new Set(known.map((each) => each.path));
+
         for (const annotation of failures) {
           if (!knownPaths.has(annotation.path)) {
             known.push({
+              id: nextID,
               path: annotation.path,
               message: annotation.message,
               raw_details: annotation.raw_details,
               details_url: detailsUrl,
             });
+            nextID++;
             newSeen = true;
           }
         }
