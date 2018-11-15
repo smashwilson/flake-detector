@@ -7,19 +7,19 @@ steps:
     versionSpec: '8.x'
   displayName: 'Install Node.js'
 
-- displayName: install dependencies
-  script: npm ci
+- script: npm ci
+  displayName: install dependencies
 
-- displayName: transpile TypeScript
-  script: npm run build
+- script: npm run build
+  displayName: transpile TypeScript
 
-- displayName: test and lint
-  script: npm test
+- script: npm test
   env:
     JEST_JUNIT_OUTPUT: junit.xml
+  displayName: test and lint
 
-- displayName: publish test results
-  task: PublishTestResults@2
+- task: PublishTestResults@2
   inputs:
     testResultsFormat: JUnit
     testResultsFiles: junit.xml
+  displayName: publish test results
