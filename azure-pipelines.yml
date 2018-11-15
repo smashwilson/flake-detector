@@ -14,4 +14,12 @@ steps:
   displayName: transpile TypeScript
 
 - script: npm test
+  env:
+    JEST_JUNIT_OUTPUT: junit.xml
   displayName: test and lint
+
+- task: PublishTestResults@2
+  inputs:
+    testResultsFormat: JUnit
+    testResultsFiles: junit.xml
+  displayName: publish test results
