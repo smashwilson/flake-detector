@@ -16,7 +16,7 @@ function editFailures(
   context: Context,
   pullNumbers: number[],
   headSha: string,
-  cb: (before: IRecordedFailure[]) => Promise<void>,
+  cb: (before: IRecordedFailure[]) => Promise<boolean>,
 ): Promise<void[]> {
   const params = context.repo();
 
@@ -33,8 +33,10 @@ function editFailures(
       if (!failures) {
         fullMap[headSha] = failures = [];
       }
-      await cb(failures);
-      await metadata(context, issueish).set("failures", fullMap);
+      const changed = await cb(failures);
+      if (changed) {
+        await metadata(context, issueish).set("failures", fullMap);
+      }
     }),
   );
 }
@@ -90,6 +92,7 @@ export = (app: Application) => {
       context.log.debug(`check_run ${run.id} contains failures`);
       // Record this failure within the pull request metadata if it is not present already
       await editFailures(context, pullRequestNumbers, headSha, async (known) => {
+        let newSeen = false;
         const knownPaths = new Set(known.map((each) => each.path));
         for (const annotation of failures) {
           if (!knownPaths.has(annotation.path)) {
@@ -99,8 +102,11 @@ export = (app: Application) => {
               raw_details: annotation.raw_details,
               details_url: detailsUrl,
             });
+            newSeen = true;
           }
         }
+
+        return newSeen;
       });
     } else if (run.conclusion === "success") {
       //
